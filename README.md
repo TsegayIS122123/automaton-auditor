@@ -22,8 +22,93 @@ The Automaton Auditor is a production-grade **multi-agent system** built with La
 This system addresses the scaling challenge in AI-Native Enterprises: **when 1000 agents generate code simultaneously, humans cannot manually review every PR**. The Automaton Auditor provides automated quality assurance at scale.
 
 ---
-
 ## 🏛️ Architecture: The Digital Courtroom
+
+```mermaid
+graph TB
+    subgraph Input["📥 Input Layer"]
+        A[GitHub Repository URL] --> Parser
+        B[PDF Report] --> Parser
+    end
+
+    subgraph Detectives["🔍 Detective Layer (Parallel Investigation)"]
+        direction TB
+        RI[RepoInvestigator<br/>Git + AST Analysis] --> EviAgg
+        DA[DocAnalyst<br/>PDF + RAG Analysis] --> EviAgg
+        VI[VisionInspector<br/>Diagram Analysis] --> EviAgg
+    end
+
+    subgraph Evidence["📊 Evidence Aggregation"]
+        EviAgg[Evidence Aggregator<br/>Synchronization Node] --> EvidenceStore[(Evidence Store)]
+    end
+
+    subgraph Judges["⚖️ Judicial Layer (Dialectical Debate)"]
+        direction TB
+        EvidenceStore --> Prosecutor
+        EvidenceStore --> Defense
+        EvidenceStore --> TechLead
+        
+        Prosecutor[Prosecutor<br/>Critical Lens] --> OpinionPool
+        Defense[Defense<br/>Optimistic Lens] --> OpinionPool
+        TechLead[Tech Lead<br/>Pragmatic Lens] --> OpinionPool
+    end
+
+    subgraph Synthesis["🏛️ Supreme Court"]
+        OpinionPool --> ChiefJustice[Chief Justice<br/>Synthesis Engine]
+        ChiefJustice --> Rules{Deterministic Rules}
+        Rules --> Security[Security Override]
+        Rules --> Fact[Fact Supremacy]
+        Rules --> Function[Functionality Weight]
+        Rules --> Dissent[Dissent Requirement]
+    end
+
+    subgraph Output["📄 Output Layer"]
+        Synthesis --> Report[Audit Report<br/>Markdown]
+        Report --> Executive[Executive Summary]
+        Report --> Criteria[Criterion Breakdown]
+        Report --> Remediation[Remediation Plan]
+    end
+
+    Parser --> Detectives
+```
+
+### 🔄 Parallel Execution Flow
+
+The architecture implements **two layers of parallel processing**:
+
+| Layer | Components | Pattern |
+|-------|------------|---------|
+| **Detective Layer** | RepoInvestigator, DocAnalyst, VisionInspector | Fan-out → Aggregate |
+| **Judicial Layer** | Prosecutor, Defense, TechLead | Fan-out → Synthesize |
+
+### ⚖️ Dialectical Synthesis 
+
+```mermaid
+graph LR
+    subgraph Thesis["Thesis (Prosecutor)"]
+        A[Find Flaws<br/>Score: 1-2] --> Conflict
+    end
+    
+    subgraph Antithesis["Antithesis (Defense)"]
+        B[Find Merit<br/>Score: 4-5] --> Conflict
+    end
+    
+    subgraph Conflict["Dialectical Conflict"]
+        C{Score Variance > 2?}
+    end
+    
+    subgraph Synthesis["Synthesis (Chief Justice)"]
+        C -->|Yes| D[Trigger Dissent]
+        C -->|No| E[Apply Rules]
+        D --> F[Security Override]
+        D --> G[Fact Supremacy]
+        D --> H[Functionality Weight]
+        E --> F
+        E --> G
+        E --> H
+        F & G & H --> I[Final Verdict]
+    end
+```
 
 ---
 
