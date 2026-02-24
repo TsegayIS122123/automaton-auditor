@@ -190,3 +190,28 @@ uv pip install -e .
 cp .env.example .env
 # Edit .env with your API keys
 ```
+# 🚀 Automaton Auditor - Interim Submission
+
+##  Completed Features
+
+### State Management
+-  Pydantic models with `operator.add`/`operator.ior` reducers
+-  Evidence, JudicialOpinion, AuditReport schemas
+-  Type-safe parallel execution
+
+### Forensic Tools
+-  Sandboxed git clone with `tempfile`
+-  AST parsing for graph structure detection
+-  Git history analysis for commit progression
+-  PDF text extraction and chunking
+-  RAG-lite with ChromaDB for targeted queries
+
+### Detective Layer
+-  RepoInvestigator node (parallel)
+-  DocAnalyst node (parallel)
+-  EvidenceAggregator for synchronization
+
+### Graph Architecture
+-  Fan-out: START → [Repo, Doc]
+-  Fan-in: [Repo, Doc] → Aggregator
+-  State reducers prevent overwrites
