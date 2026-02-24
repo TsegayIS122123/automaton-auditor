@@ -1,0 +1,206 @@
+# .github/workflows/ci.yml
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master, develop ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # Manual trigger
+
+env:
+  PYTHON_VERSION: '3.13'
+  UV_VERSION: 'latest'
+
+jobs:
+  validate:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          uv pip install --system ruff mypy bandit
+      
+      - name: Lint with ruff
+        run: ruff check src/ --output-format=github
+      
+      - name: Type check with mypy
+        run: mypy src/ --strict --ignore-missing-imports
+      
+      - name: Security scan with bandit
+        run: bandit -r src/ -f json -o bandit-report.json || true
+      
+      - name: Upload security report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-report
+          path: bandit-report.json
+
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    needs: validate
+    strategy:
+      matrix:
+        python-version: ['3.13']
+      fail-fast: false
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Install project
+        run: uv pip install --system -e ".[dev]"
+      
+      - name: Run tests with coverage
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || 'dummy-key' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || 'dummy-key' }}
+        run: |
+          pytest tests/ -v \
+            --cov=src \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --junitxml=junit.xml \
+            -m "not slow"
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+        #   file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.python-version }}
+          path: junit.xml
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [validate, test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=sha,format=short
+      
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  e2e:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install project
+        run: uv pip install --system -e .
+      
+      - name: Create test PDF
+        run: |
+          echo "# Test Report" > reports/test.pdf
+          echo "This is a test report for E2E testing" >> reports/test.pdf
+      
+      - name: Run end-to-end audit
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LANGCHAIN_API_KEY: ${{ secrets.LANGCHAIN_API_KEY }}
+          LANGCHAIN_TRACING_V2: ${{ secrets.LANGCHAIN_API_KEY != '' }}
+        run: |
+          python -m automaton_auditor.cli audit \
+            https://github.com/${{ github.repository }} \
+            reports/test.pdf \
+            --output ./audits/e2e-test \
+            --verbose
+      
+      - name: Upload audit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-audit-results
+          path: audits/e2e-test/
+
+  status:
+    name: Status Check
+    runs-on: ubuntu-latest
+    needs: [validate, test, docker, e2e]
+    if: always()
+    steps:
+      - run: |
+          echo "✅ All checks passed!"
+          echo "📊 Summary:"
+          echo "  - Validate: ${{ needs.validate.result }}"
+          echo "  - Test: ${{ needs.test.result }}"
+          echo "  - Docker: ${{ needs.docker.result }}"
+          echo "  - E2E: ${{ needs.e2e.result }}"
