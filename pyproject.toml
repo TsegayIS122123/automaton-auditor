@@ -30,23 +30,23 @@ dependencies = [
     "pydantic>=2.10.0,<3.0.0",
     "pydantic-settings>=2.5.0,<3.0.0",
     "python-dotenv>=1.0.0,<2.0.0",
-    
+
     # Tools
     "GitPython>=3.1.0,<4.0.0",
     "PyPDF2>=3.0.0,<4.0.0",
-    "pypdf>=5.0.0,<6.0.0",  # Alternative to PyPDF2
-    "chromadb>=0.5.0,<0.6.0",  # For RAG-lite
-    "sentence-transformers>=3.0.0,<4.0.0",  # For embeddings
-    
+    "pypdf>=5.0.0,<6.0.0",
+    "chromadb>=0.5.0,<0.6.0",
+    "sentence-transformers>=3.0.0,<4.0.0",
+
     # AST parsing - built-in, no install needed
-    
+
     # Optional: Vision
-    "pillow>=10.0.0,<11.0.0",  # For image processing
-    "opencv-python>=4.10.0,<5.0.0",  # Alternative image processing
-    
+    "pillow>=10.0.0,<11.0.0",
+    "opencv-python>=4.10.0,<5.0.0",
+
     # CLI
     "typer>=0.12.0,<0.13.0",
-    "rich>=13.0.0,<14.0.0",  # For pretty CLI output
+    "rich>=13.0.0,<14.0.0",
 ]
 
 [project.optional-dependencies]
@@ -63,11 +63,12 @@ dev = [
 vision = [
     "pillow>=10.0.0,<11.0.0",
     "opencv-python>=4.10.0,<5.0.0",
-    "langchain-community>=0.3.0,<0.4.0",  # For multimodal
+    "langchain-community>=0.3.0,<0.4.0",
 ]
 
 [project.scripts]
-automaton-auditor = "automaton_auditor.cli:app"
+# This is the CORRECTED line - points to src/cli.py main()
+automaton-auditor = "src.cli:main"
 
 [build-system]
 requires = ["setuptools>=69.0.0", "wheel"]

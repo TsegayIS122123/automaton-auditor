@@ -314,6 +314,33 @@ uv sync
 
 # This guarantees everyone gets IDENTICAL dependencies
 ```
+## 🏃‍♂️ Explicit Run Commands
+
+### Using the Python script 
+```bash
+# After installation, run with ONE command:
+python run.py https://github.com/langchain-ai/langgraph reports/interim_report.pdf
+```
+## 📊 Expected Output
+
+When you run the detective graph successfully, you should see output like this:
+
+```bash
+$ python run.py https://github.com/langchain-ai/langgraph reports/interim_report.pdf
+
+🚀 Automaton Auditor - Detective Phase
+📦 Repository: https://github.com/langchain-ai/langgraph
+📄 PDF Report: reports/interim_report.pdf
+--------------------------------------------------
+
+📊 Evidence Aggregator: Collected 8 evidence items
+   - doc: 7 items
+   - repo: 1 items
+📊 Evidence Check: 8 items collected
+
+✅ Done! Collected 8 evidence items
+```
+
 ## 👤 Author
 
 **Tsegay Assefa**
