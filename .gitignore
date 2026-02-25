@@ -59,7 +59,6 @@ langsmith_traces/
 # Docker
 *.pid
 *.seed
-*.pid.lock
 
 # Temp directories
 temp/
@@ -71,13 +70,9 @@ tmp/
 *.ipynb
 
 # Package manager
-.pdm.toml
 .pdm-python
 .pdm-build/
 __pypackages__/
-
-# uv
-uv.lock
 
 # OS
 Thumbs.db

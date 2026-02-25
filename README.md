@@ -304,6 +304,16 @@ Traces appear automatically at https://smith.langchain.com
 - Ensure all dependencies installed
 - Check Python version (3.10+ required)
 - Run `uv pip install -e .` to reinstall
+### 🔒 Reproducible Builds
+
+This project uses `uv.lock` for **fully locked dependencies**:
+
+```bash
+# Install exact versions from lock file
+uv sync
+
+# This guarantees everyone gets IDENTICAL dependencies
+```
 ## 👤 Author
 
 **Tsegay Assefa**
