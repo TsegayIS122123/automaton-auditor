@@ -165,6 +165,32 @@ automaton-auditor/
 ├── README.md                       # This file
 └── Dockerfile                      # Optional container
 ```
+
+# 🚀 Automaton Auditor 
+
+##  Completed Features
+
+### State Management
+-  Pydantic models with `operator.add`/`operator.ior` reducers
+-  Evidence, JudicialOpinion, AuditReport schemas
+-  Type-safe parallel execution
+
+### Forensic Tools
+-  Sandboxed git clone with `tempfile`
+-  AST parsing for graph structure detection
+-  Git history analysis for commit progression
+-  PDF text extraction and chunking
+-  RAG-lite with ChromaDB for targeted queries
+
+### Detective Layer
+-  RepoInvestigator node (parallel)
+-  DocAnalyst node (parallel)
+-  EvidenceAggregator for synchronization
+
+### Graph Architecture
+-  Fan-out: START → [Repo, Doc]
+-  Fan-in: [Repo, Doc] → Aggregator
+-  State reducers prevent overwrites
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -190,28 +216,105 @@ uv pip install -e .
 cp .env.example .env
 # Edit .env with your API keys
 ```
-# 🚀 Automaton Auditor - Interim Submission
+## 🚀 Running the Detective Graph
 
-##  Completed Features
+### How to Run It
+The detective graph can be executed in three ways:
+- **Python script** - Create a `.py` file with the run command
+- **One-liner** - Quick test via command line
+- **Interactive Python** - Run step-by-step in Python shell
 
-### State Management
--  Pydantic models with `operator.add`/`operator.ior` reducers
--  Evidence, JudicialOpinion, AuditReport schemas
--  Type-safe parallel execution
+All methods require two parameters:
+1. A GitHub repository URL (public repository)
+2. A PDF report path (your interim report)
 
-### Forensic Tools
--  Sandboxed git clone with `tempfile`
--  AST parsing for graph structure detection
--  Git history analysis for commit progression
--  PDF text extraction and chunking
--  RAG-lite with ChromaDB for targeted queries
+### How to Pass a Target GitHub Repository URL
+Pass the URL directly as a string parameter:
+- Your own repo: `https://github.com/YOUR_USERNAME/automaton-auditor`
+- Peer's repo: `https://github.com/PEER_USERNAME/their-repository`
+- Any public repo: `https://github.com/org/repository`
 
-### Detective Layer
--  RepoInvestigator node (parallel)
--  DocAnalyst node (parallel)
--  EvidenceAggregator for synchronization
+The URL must be a valid, publicly accessible GitHub repository.
 
-### Graph Architecture
--  Fan-out: START → [Repo, Doc]
--  Fan-in: [Repo, Doc] → Aggregator
--  State reducers prevent overwrites
+### What Output to Expect
+The system produces:
+- **Console output**: Real-time logging of evidence collection
+- **Evidence summary**: Count of items found by each detective
+- **Detailed evidence**: For each piece of evidence, you'll see:
+  - Goal (what was being checked)
+  - Found status (True/False)
+  - Confidence score (0-1)
+  - Location (file path, commit hash, or page number)
+  - Content (relevant code snippets or text)
+
+### Example Execution
+Run against any public repository with your PDF report. The system will:
+1. Clone the repository in a sandboxed temporary directory
+2. Analyze git commit history for progression patterns
+3. Parse Python files using AST to detect graph structure
+4. Extract and chunk text from the PDF report
+5. Query for key concepts like "Dialectical Synthesis"
+6. Aggregate all evidence into a structured format
+
+### Output Example
+Successful execution shows:
+- Evidence aggregator summary with item counts per detective
+- For each evidence item: goal, found status, confidence, location
+- Total evidence collected across all sources
+- Any warnings or errors encountered during execution
+
+### Testing
+Run the provided test suite to verify everything works:
+- State model tests validate Pydantic schemas and reducers
+- Tool tests confirm sandboxing and AST parsing
+- Graph tests verify parallel structure compiles
+All tests should pass with clear success messages.
+
+### Observability with LangSmith
+If LangSmith API keys are configured:
+- Every graph execution is traced
+- View parallel execution flow in LangSmith dashboard
+- Inspect each node's inputs and outputs
+- Debug issues with full visibility into the agent's reasoning
+Traces appear automatically at https://smith.langchain.com
+
+### Troubleshooting
+
+**Git clone fails**
+- Verify the repository URL is public and accessible
+- Check internet connection
+- For private repos, add GITHUB_TOKEN to .env file
+
+**PDF not found**
+- Ensure PDF path is correct relative to project root
+- Verify file exists in the reports/ directory
+- Check file permissions
+
+**No evidence collected**
+- The repository may not contain expected patterns
+- PDF may not mention required concepts
+- This is normal - evidence.found will be False
+
+**Import errors**
+- Run from project root directory
+- Install with `uv pip install -e .`
+- Activate virtual environment first
+
+**Tests fail**
+- Ensure all dependencies installed
+- Check Python version (3.10+ required)
+- Run `uv pip install -e .` to reinstall
+## 👤 Author
+
+**Tsegay Assefa**
+- 🧠 AI Systems Architect | Multi-Agent Governance Research
+- 📧 Email: [tsegayassefa27@gmail.com]  
+- 🔗 GitHub: [@TsegayIS122123](https://github.com/TsegayIS122123)
+- 💼 LinkedIn: [tsegay-assefa-95a397336](https://www.linkedin.com/in/tsegay-assefa-95a397336/)
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
