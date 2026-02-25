@@ -61,14 +61,6 @@ langsmith_traces/
 *.seed
 *.pid.lock
 
-# Audit reports (keep directories but not reports)
-audits/report_*/**/*.md
-!audits/report_*/.gitkeep
-
-# Reports
-reports/*.pdf
-!reports/.gitkeep
-
 # Temp directories
 temp/
 tmp/
