@@ -314,6 +314,16 @@ uv sync
 
 # This guarantees everyone gets IDENTICAL dependencies
 ```
+## 📦 **Dependency Management**
+This project uses **`uv`** for dependency management:
+
+```bash
+# Install dependencies (uses pyproject.toml + uv.lock)
+uv sync
+
+# This installs EXACT versions from uv.lock
+# NOT requirements.txt (which is deprecated )
+```
 ## 🏃‍♂️ Explicit Run Commands
 
 ### Using the Python script 
