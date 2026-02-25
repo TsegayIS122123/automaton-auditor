@@ -1,16 +1,16 @@
-"""Repository forensic tools with AST parsing and git analysis"""
+"""Repository forensic tools with sandboxing and AST parsing"""
 
 import ast
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 import git
 from datetime import datetime
 import os
 
 class RepoInvestigator:
-    """Forensic code detective with AST parsing"""
+    """Forensic code detective with AST parsing - sandboxed and safe"""
     
     def __init__(self, repo_url: str):
         self.repo_url = repo_url
@@ -23,12 +23,12 @@ class RepoInvestigator:
         return self
         
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Clean up temp directory"""
+        """Clean up temp directory - guarantees no leftover files"""
         if self.temp_dir:
             self.temp_dir.cleanup()
     
     def clone_repo(self) -> Path:
-        """Sandboxed git clone using tempfile"""
+        """Sandboxed git clone using tempfile - NO os.system()"""
         self.temp_dir = tempfile.TemporaryDirectory()
         self.repo_path = Path(self.temp_dir.name)
         
@@ -46,8 +46,10 @@ class RepoInvestigator:
             raise Exception(f"Git clone failed: {e.stderr}")
         except subprocess.TimeoutExpired:
             raise Exception("Git clone timed out after 60 seconds")
+        except Exception as e:
+            raise Exception(f"Unexpected error: {str(e)}")
     
-    def analyze_git_history(self) -> Dict:
+    def analyze_git_history(self) -> Dict[str, Any]:
         """Extract commit history for forensic analysis"""
         try:
             repo = git.Repo(self.repo_path)
@@ -61,7 +63,8 @@ class RepoInvestigator:
                 "last_commit": None
             }
             
-            for i, commit in enumerate(reversed(commits[:10])):  # Last 10 commits
+            # Analyze last 10 commits for progression pattern
+            for i, commit in enumerate(reversed(commits[:10])):
                 history["commits"].append({
                     "hash": commit.hexsha[:8],
                     "message": commit.message.strip(),
@@ -69,9 +72,9 @@ class RepoInvestigator:
                     "files_changed": len(commit.stats.files)
                 })
             
-            # Check for progression pattern
+            # Check for progression pattern (setup → tools → graph)
             messages = [c["message"].lower() for c in history["commits"]]
-            patterns = ["setup", "env", "tool", "graph", "node", "judge"]
+            patterns = ["setup", "env", "init", "tool", "graph", "node", "detective"]
             history["has_progression"] = any(p in " ".join(messages) for p in patterns)
             
             if commits:
@@ -82,8 +85,8 @@ class RepoInvestigator:
         except Exception as e:
             return {"error": str(e), "total_commits": 0}
     
-    def analyze_graph_structure(self) -> Dict:
-        """AST parsing to detect graph architecture"""
+    def analyze_graph_structure(self) -> Dict[str, Any]:
+        """AST parsing to detect graph architecture - NOT regex!"""
         graph_file = self.repo_path / "src" / "graph.py"
         
         if not graph_file.exists():
@@ -109,20 +112,12 @@ class RepoInvestigator:
                     if isinstance(node.func, ast.Name) and node.func.id == "StateGraph":
                         analysis["has_stategraph"] = True
                 
-                # Look for add_edge calls (parallel detection)
+                # Look for add_edge calls
                 if isinstance(node, ast.Call):
                     if isinstance(node.func, ast.Attribute) and node.func.attr == "add_edge":
-                        if len(node.args) >= 2:
-                            analysis["edges"].append("add_edge")
-                
-                # Look for add_conditional_edges
-                if isinstance(node, ast.Call):
-                    if isinstance(node.func, ast.Attribute) and node.func.attr == "add_conditional_edges":
-                        analysis["edges"].append("conditional")
-                
-                # Detect parallel pattern: multiple edges from START
-                if isinstance(node, ast.Call) and hasattr(node, 'func'):
-                    if isinstance(node.func, ast.Attribute) and node.func.attr == "add_edge":
+                        analysis["edges"].append("add_edge")
+                        
+                        # Detect fan-out: multiple edges from START
                         if len(node.args) >= 2:
                             first_arg = node.args[0]
                             if isinstance(first_arg, ast.Name) and first_arg.id == "START":
@@ -136,7 +131,7 @@ class RepoInvestigator:
         except Exception as e:
             return {"exists": True, "error": str(e)}
     
-    def check_state_models(self) -> Dict:
+    def check_state_models(self) -> Dict[str, Any]:
         """Verify Pydantic models in state.py"""
         state_file = self.repo_path / "src" / "state.py"
         
@@ -158,10 +153,10 @@ class RepoInvestigator:
             }
             
             return analysis
-        except:
-            return {"exists": True, "error": "Could not parse"}
+        except Exception as e:
+            return {"exists": True, "error": str(e)}
     
-    def check_sandboxing(self) -> Dict:
+    def check_sandboxing(self) -> Dict[str, Any]:
         """Verify tools use proper sandboxing"""
         tools_files = [
             self.repo_path / "src" / "tools" / "repo_tools.py",
