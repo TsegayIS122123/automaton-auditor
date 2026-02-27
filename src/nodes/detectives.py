@@ -8,6 +8,7 @@ from ..state import AgentState, Evidence
 from ..tools.repo_tools import RepoInvestigator
 from ..tools.doc_tools import DocAnalyst
 from ..rubric_loader import RubricLoader
+from .vision_inspector import vision_inspector_node
 
 def repo_investigator_node(state: AgentState) -> Dict[str, List[Evidence]]:
     """
