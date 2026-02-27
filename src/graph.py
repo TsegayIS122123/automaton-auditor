@@ -1,4 +1,4 @@
-"""LangGraph state machine with parallel detective layer and error handling"""
+"""Complete StateGraph with parallel detectives, judges, and synthesis"""
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
@@ -10,95 +10,25 @@ from .nodes.detectives import (
     doc_analyst_node,
     evidence_aggregator_node
 )
+from .nodes.vision_inspector import vision_inspector_node
+from .nodes.judges import prosecutor_node, defense_node, tech_lead_node
+from .nodes.justice import chief_justice_node
 from .rubric_loader import RubricLoader
 
-def should_retry_or_fail(state: AgentState) -> Literal["continue", "retry", "fail"]:
-    """Conditional edge: Check if evidence collection succeeded"""
-    
-    # Count errors
+def route_after_detectives(state: AgentState) -> Literal["proceed_to_judges", "error"]:
+    """Route after evidence collection - proceed if evidence exists"""
+    total_evidence = sum(len(ev_list) for ev_list in state["evidences"].values())
     error_count = len(state.get("errors", []))
     
-    if error_count > 3:
-        return "fail"  # Too many errors, abort
-    elif error_count > 0:
-        return "retry"  # Some errors, retry once
-    else:
-        return "continue"  # No errors, proceed
+    if error_count > 0 or total_evidence == 0:
+        return "error"
+    return "proceed_to_judges"
 
-def check_evidence_exists(state: AgentState) -> Literal["has_evidence", "missing_evidence"]:
-    """Conditional edge: Check if any evidence was collected"""
-    
-    total_evidence = sum(len(ev_list) for ev_list in state["evidences"].values())
-    
-    if total_evidence == 0:
-        return "missing_evidence"
-    return "has_evidence"
-
-def create_detective_graph():
-    """
-    Create graph with detective layer and conditional error handling.
-    Features:
-    - Parallel fan-out: START → [Repo, Doc]
-    - Fan-in: [Repo, Doc] → EvidenceAggregator
-    - Conditional edges for error handling and retry logic
-    """
-    
-    # Load rubric dynamically
-    rubric = RubricLoader()
-    
-    # Initialize graph with state schema
-    builder = StateGraph(AgentState)
-    
-    # Add nodes
-    builder.add_node("repo_investigator", repo_investigator_node)
-    builder.add_node("doc_analyst", doc_analyst_node)
-    builder.add_node("evidence_aggregator", evidence_aggregator_node)
-    builder.add_node("error_handler", handle_errors)  # New error handling node
-    builder.add_node("retry_node", retry_operation)    # New retry node
-    
-    # FAN-OUT: Both detectives start in parallel
-    builder.add_edge(START, "repo_investigator")
-    builder.add_edge(START, "doc_analyst")
-    
-    # FAN-IN: Both feed into aggregator
-    builder.add_edge("repo_investigator", "evidence_aggregator")
-    builder.add_edge("doc_analyst", "evidence_aggregator")
-    
-    # CONDITIONAL EDGE: Check errors after aggregation
-    builder.add_conditional_edges(
-        "evidence_aggregator",
-        should_retry_or_fail,
-        {
-            "continue": "check_evidence",  # No errors, check evidence
-            "retry": "retry_node",          # Some errors, retry
-            "fail": "error_handler"         # Too many errors, fail
-        }
-    )
-    
-    # Add evidence check node
-    builder.add_node("check_evidence", check_evidence_node)
-    
-    # CONDITIONAL EDGE: Check if evidence exists
-    builder.add_conditional_edges(
-        "check_evidence",
-        check_evidence_exists,
-        {
-            "has_evidence": END,           # Success - we have evidence
-            "missing_evidence": "error_handler"  # No evidence - error
-        }
-    )
-    
-    # Error handling paths
-    builder.add_edge("retry_node", "repo_investigator")  # Retry detectives
-    builder.add_edge("error_handler", END)                # End with error
-    
-    # Add memory for state persistence
-    memory = MemorySaver()
-    
-    # Compile graph
-    graph = builder.compile(checkpointer=memory)
-    
-    return graph
+def route_after_judges(state: AgentState) -> Literal["proceed_to_justice", "error"]:
+    """Route after judge deliberation - proceed if opinions exist"""
+    if len(state.get("opinions", [])) == 0:
+        return "error"
+    return "proceed_to_justice"
 
 def handle_errors(state: AgentState) -> Dict:
     """Error handling node"""
@@ -107,27 +37,84 @@ def handle_errors(state: AgentState) -> Dict:
         print(f"  - {error}")
     return {"warnings": ["Graph terminated due to errors"]}
 
-def retry_operation(state: AgentState) -> Dict:
-    """Retry logic node"""
-    print("🔄 Retrying failed operations...")
-    # Clear errors for retry
-    return {"errors": []}
-
-def check_evidence_node(state: AgentState) -> Dict:
-    """Check if evidence was collected"""
-    total = sum(len(ev_list) for ev_list in state["evidences"].values())
-    print(f"📊 Evidence Check: {total} items collected")
-    return {}
-
-def run_detective_phase(repo_url: str, pdf_path: str) -> Dict[str, Any]:
+def create_full_graph():
     """
-    Helper function to run the detective phase against a target.
-    Now includes error handling and conditional routing.
+    Create complete graph with all layers:
+    - Detectives (parallel) → Aggregator
+    - Judges (parallel) → Chief Justice
+    - Conditional edges for error handling
     """
     # Load rubric
     rubric = RubricLoader()
+
+    # Initialize graph
+    builder = StateGraph(AgentState)
+
+    # --- Add all nodes ---
+    # Detectives
+    builder.add_node("repo_investigator", repo_investigator_node)
+    builder.add_node("doc_analyst", doc_analyst_node)
+    builder.add_node("vision_inspector", vision_inspector_node)
+    builder.add_node("evidence_aggregator", evidence_aggregator_node)
     
-    # Create initial state
+    # Judges
+    builder.add_node("prosecutor", prosecutor_node)
+    builder.add_node("defense", defense_node)
+    builder.add_node("tech_lead", tech_lead_node)
+    
+    # Chief Justice
+    builder.add_node("chief_justice", chief_justice_node)
+    
+    # Error handling
+    builder.add_node("error_handler", handle_errors)
+
+    # --- Detective Layer: FAN-OUT ---
+    builder.add_edge(START, "repo_investigator")
+    builder.add_edge(START, "doc_analyst")
+    builder.add_edge(START, "vision_inspector")
+
+    # --- Detective Layer: FAN-IN ---
+    builder.add_edge("repo_investigator", "evidence_aggregator")
+    builder.add_edge("doc_analyst", "evidence_aggregator")
+    builder.add_edge("vision_inspector", "evidence_aggregator")
+
+    # --- Conditional after detectives ---
+    builder.add_conditional_edges(
+        "evidence_aggregator",
+        route_after_detectives,
+        {
+            "proceed_to_judges": "judges_entry",
+            "error": "error_handler"
+        }
+    )
+
+    # --- Judges entry point (fan-out) ---
+    builder.add_node("judges_entry", lambda x: x)  # Pass-through node
+    builder.add_edge("judges_entry", "prosecutor")
+    builder.add_edge("judges_entry", "defense")
+    builder.add_edge("judges_entry", "tech_lead")
+
+    # --- Judges FAN-IN to Chief Justice ---
+    builder.add_edge("prosecutor", "chief_justice")
+    builder.add_edge("defense", "chief_justice")
+    builder.add_edge("tech_lead", "chief_justice")
+
+    # --- Final synthesis ---
+    builder.add_edge("chief_justice", END)
+    builder.add_edge("error_handler", END)
+
+    # Compile with checkpointing
+    graph = builder.compile(checkpointer=MemorySaver())
+    
+    return graph
+
+def run_full_audit(repo_url: str, pdf_path: str) -> Dict[str, Any]:
+    """
+    Run complete audit with all layers.
+    Returns final state with AuditReport.
+    """
+    rubric = RubricLoader()
+    
     initial_state = {
         "repo_url": repo_url,
         "pdf_path": pdf_path,
@@ -138,12 +125,10 @@ def run_detective_phase(repo_url: str, pdf_path: str) -> Dict[str, Any]:
         "errors": [],
         "warnings": []
     }
-    
-    # Create and run graph
-    graph = create_detective_graph()
+
+    graph = create_full_graph()
     
     try:
-        # Run with a dummy thread ID
         result = graph.invoke(
             initial_state,
             config={"configurable": {"thread_id": f"audit-{hash(repo_url)}"}}
@@ -155,12 +140,12 @@ def run_detective_phase(repo_url: str, pdf_path: str) -> Dict[str, Any]:
 
 # For testing
 if __name__ == "__main__":
-    print("🚀 Testing detective graph with error handling...")
-    result = run_detective_phase(
+    print("🚀 Testing full audit graph...")
+    result = run_full_audit(
         repo_url="https://github.com/langchain-ai/langgraph",
         pdf_path="reports/interim_report.pdf"
     )
     print(f"\n✅ Graph executed successfully!")
-    print(f"📊 Collected {sum(len(e) for e in result['evidences'].values())} evidence items")
-    print(f"⚠️ Errors: {len(result.get('errors', []))}")
-    print(f"⚠️ Warnings: {len(result.get('warnings', []))}")
+    print(f"📊 Evidence collected: {sum(len(e) for e in result['evidences'].values())}")
+    print(f"⚖️ Opinions generated: {len(result.get('opinions', []))}")
+    print(f"📄 Final report: {'Generated' if result.get('final_report') else 'Not generated'}")
