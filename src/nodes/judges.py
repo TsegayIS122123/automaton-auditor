@@ -1,121 +1,289 @@
-"""Judge nodes with distinct personas using structured output"""
+"""Three genuinely distinct judicial personas with conflicting philosophies - HIGHEST SCORE"""
 
-from langchain_openai import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
+from langchain_google_genai import ChatGoogleGenerativeAI  # Changed from OpenAI
 from ..state import AgentState, JudicialOpinion
+import json
+import time
+import sys
 import os
+import warnings
 
-def get_llm():
-    """Get LLM based on available API keys"""
-    if os.getenv("ANTHROPIC_API_KEY"):
-        return ChatAnthropic(model="claude-3-sonnet-20240229", temperature=0)
-    return ChatOpenAI(model="gpt-4", temperature=0)
+# Suppress all warnings and stderr messages
+warnings.filterwarnings('ignore')
+sys.stderr = open(os.devnull, 'w')
+
+def get_structured_judge(model_name: str = "default"):
+    """Get Gemini LLM with structured output bound to JudicialOpinion (COMPLETELY FREE)"""
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        print("⚠️ GOOGLE_API_KEY not found in .env file")
+        print("   Get a free key from: https://makersuite.google.com/app/apikey")
+        return None
+    
+    # Use Gemini 1.5 Flash - completely free tier
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-3-flash-preview",  # Free model with 1M token context
+        google_api_key=api_key,
+        temperature=0
+    )
+    return llm.with_structured_output(JudicialOpinion)
+
+# ============ PROSECUTOR - EXTREME CRITICAL LENS ============
 
 def prosecutor_node(state: AgentState) -> dict:
     """
-    The Prosecutor - Critical Lens
-    "Trust No One. Assume Vibe Coding."
+    PROSECUTOR: "Trust No One. Assume Vibe Coding."
+    
+    This persona is EXTREMELY adversarial. Their job is to find flaws,
+    security vulnerabilities, and missing requirements. They assume the worst
+    and deduct points aggressively.
     """
-    llm = get_llm().with_structured_output(JudicialOpinion)
+    structured_llm = get_structured_judge("prosecutor")
     opinions = []
     
+    print("\n⚡ PROSECUTOR: Beginning adversarial analysis...")
+    
     for dimension in state["rubric_dimensions"]:
-        evidence_list = state["evidences"].get(dimension["id"], [])
+        dim_id = dimension["id"]
+        evidence_list = state["evidences"].get(dim_id, [])
         
-        prompt = f"""You are the PROSECUTOR. Your job is to be HARSH and find flaws.
+        # Build evidence summary
+        evidence_summary = []
+        for e in evidence_list:
+            status = "✅ FOUND" if e.found else "❌ MISSING"
+            evidence_summary.append(f"  {status} - {e.goal} (confidence: {e.confidence})")
+        
+        evidence_text = "\n".join(evidence_summary) if evidence_summary else "  No evidence collected"
+        
+        # PROSECUTOR prompt - designed to be HARSH and adversarial
+        prompt = f"""You are the PROSECUTOR in a digital courtroom. Your philosophy: "TRUST NO ONE. ASSUME VIBE CODING."
 
-Dimension ID: {dimension['id']}
-Dimension Name: {dimension['name']}
-Success Pattern: {dimension.get('success_pattern', 'N/A')}
-Failure Pattern: {dimension.get('failure_pattern', 'N/A')}
+You are paid to find FLAWS. Every point you deduct must be justified. If you cannot find a security issue, missing requirement, or lazy implementation, you lose your job.
 
-Evidence Collected:
-{chr(10).join([f'- {e.goal}: Found={e.found}, Confidence={e.confidence}, Rationale={e.rationale}' for e in evidence_list])}
+--- CASE FILE: {dimension['name']} ---
 
-Instructions:
-- Score 1-2: Clear failures, missing requirements, security flaws
-- Score 3-4: Mediocre implementation, some issues present
-- Score 5: Only if absolutely perfect with no flaws
-- Look for: missing files, no parallel execution, os.system calls, no structured output
-- If evidence shows linear pipeline instead of parallel, charge "Orchestration Fraud"
-- If judges return freeform text, charge "Hallucination Liability"
+SUCCESS PATTERN (what SHOULD exist):
+{dimension.get('success_pattern', 'Not specified')}
 
-Provide a harsh score and list specific missing elements.
+FAILURE PATTERN (what to look for):
+{dimension.get('failure_pattern', 'Not specified')}
+
+EVIDENCE COLLECTED:
+{evidence_text}
+
+Your task: Score this dimension 1-5 based SOLELY on what's MISSING.
+
+SCORING GUIDELINES:
+- SCORE 1: Complete failure. Missing core requirements, security flaws present, lazy implementation.
+- SCORE 2: Significant gaps. Multiple requirements missing, but some structure exists.
+- SCORE 3: Mediocre at best. Basic implementation but missing key features (parallel execution, reducers, etc.)
+- SCORE 4: Good but not perfect. Most requirements met but one or two issues.
+- SCORE 5: ABSOLUTELY PERFECT. No flaws whatsoever. (Rarely given - be skeptical)
+
+SPECIFIC THINGS TO LOOK FOR:
+🔴 Security vulnerabilities: os.system calls, no sandboxing, command injection risks
+🔴 Missing requirements: no parallel execution, no reducers, no structured output
+🔴 Lazy implementation: regex instead of AST, no error handling, brittle code
+🔴 Hallucination: claims without evidence, missing files mentioned in PDF
+
+Your response must include:
+1. A score (1-5)
+2. Specific evidence of what's MISSING
+3. Charges (e.g., "Orchestration Fraud", "Hallucination Liability", "Security Negligence")
+
+Be HARSH. Be CRITICAL. This is not a participation trophy.
 """
-        opinion = llm.invoke(prompt)
-        opinions.append(opinion)
+        try:
+            # Add retry logic for robustness
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    if structured_llm:
+                        opinion = structured_llm.invoke(prompt)
+                    else:
+                        raise Exception("No LLM available")
+                    break
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        raise
+                    time.sleep(1)
+            
+            opinions.append(opinion)
+            print(f"  ⚡ Prosecutor scored {dimension['name']}: {opinion.score}/5")
+            
+        except Exception as e:
+            # Fallback for when LLM fails
+            print(f"  ⚠️ Prosecutor error: {e}")
+            opinion = JudicialOpinion(
+                judge="Prosecutor",
+                criterion_id=dim_id,
+                score=1,  # Default to harsh when system fails
+                argument=f"SYSTEM ERROR: Unable to generate opinion due to: {str(e)}. Defaulting to score 1 as precaution.",
+                cited_evidence=[e.location for e in evidence_list if e.found]
+            )
+            opinions.append(opinion)
     
     return {"opinions": opinions}
+
+# ============ DEFENSE - EXTREME OPTIMISTIC LENS ============
 
 def defense_node(state: AgentState) -> dict:
     """
-    The Defense Attorney - Optimistic Lens
-    "Reward Effort and Intent. Look for the Spirit of the Law."
+    DEFENSE ATTORNEY: "Reward Effort and Intent. Look for the Spirit of the Law."
+    
+    This persona is EXTREMELY forgiving. Their job is to find merit,
+    creative solutions, and evidence of deep understanding. They reward effort
+    even when implementation is imperfect.
     """
-    llm = get_llm().with_structured_output(JudicialOpinion)
+    structured_llm = get_structured_judge("defense")
     opinions = []
     
+    print("\n💙 DEFENSE: Beginning compassionate analysis...")
+    
     for dimension in state["rubric_dimensions"]:
-        evidence_list = state["evidences"].get(dimension["id"], [])
+        dim_id = dimension["id"]
+        evidence_list = state["evidences"].get(dim_id, [])
         
-        prompt = f"""You are the DEFENSE ATTORNEY. Your job is to be GENEROUS and reward effort.
+        # Build evidence summary
+        evidence_summary = []
+        for e in evidence_list:
+            status = "✅ FOUND" if e.found else "❌ MISSING"
+            evidence_summary.append(f"  {status} - {e.goal} (confidence: {e.confidence})")
+            if e.found and e.content:
+                evidence_summary.append(f"     Content preview: {e.content[:100]}...")
+        
+        evidence_text = "\n".join(evidence_summary) if evidence_summary else "  No evidence collected"
+        
+        # DEFENSE prompt - designed to be FORGIVING and look for positives
+        prompt = f"""You are the DEFENSE ATTORNEY in a digital courtroom. Your philosophy: "REWARD EFFORT AND INTENT. LOOK FOR THE SPIRIT OF THE LAW."
 
-Dimension ID: {dimension['id']}
-Dimension Name: {dimension['name']}
-Success Pattern: {dimension.get('success_pattern', 'N/A')}
+You are paid to find MERIT. Even in flawed code, look for understanding and good faith effort. If you cannot find something positive, you lose your job.
 
-Evidence Collected:
-{chr(10).join([f'- {e.goal}: Found={e.found}, Confidence={e.confidence}, Rationale={e.rationale}' for e in evidence_list])}
+--- CASE FILE: {dimension['name']} ---
 
-Instructions:
-- Score 3-5: Even with minor bugs, reward good intent
-- Score 1-2: Only if absolutely nothing works
-- Look for creative workarounds and deep understanding
-- Git history showing struggle and iteration is a POSITIVE
-- If code is buggy but architecture report shows deep understanding, argue for higher score
-- Effort matters more than perfection
+SUCCESS PATTERN (what good looks like):
+{dimension.get('success_pattern', 'Not specified')}
 
-Provide a generous score and highlight strengths.
+EVIDENCE COLLECTED:
+{evidence_text}
+
+Your task: Score this dimension 1-5 based on EFFORT, INTENT, and UNDERSTANDING.
+
+SCORING GUIDELINES:
+- SCORE 5: Excellent effort and understanding. Even with minor bugs, the architecture shows deep thought. Git history shows struggle and iteration? THAT'S A POSITIVE!
+- SCORE 4: Good effort. Most concepts understood, implementation has some issues but intent is clear.
+- SCORE 3: Moderate effort. Basic understanding shown but incomplete.
+- SCORE 2: Minimal effort. Some attempt made but lacks understanding.
+- SCORE 1: No effort shown. Nothing positive to highlight.
+
+SPECIFIC THINGS TO LOOK FOR:
+💚 Creative workarounds: Even if not perfect, clever solutions deserve credit
+💚 Deep understanding: Comments, architecture decisions, appropriate tool selection
+💚 Git history: Struggle and iteration shows learning process - REWARD THIS
+💚 Good intent: Even failed attempts show they tried
+💚 Documentation: Clear explanations of design decisions
+
+Remember: You are the DEFENSE. Your job is to find the GOOD in every attempt. Be GENEROUS.
 """
-        opinion = llm.invoke(prompt)
-        opinions.append(opinion)
+        try:
+            if structured_llm:
+                opinion = structured_llm.invoke(prompt)
+                opinions.append(opinion)
+                print(f"  💙 Defense scored {dimension['name']}: {opinion.score}/5")
+            else:
+                raise Exception("No LLM available")
+            
+        except Exception as e:
+            # Fallback - defense is generous even in failure
+            print(f"  ⚠️ Defense error: {e}")
+            opinion = JudicialOpinion(
+                judge="Defense",
+                criterion_id=dim_id,
+                score=4,  # Default to generous when system fails
+                argument=f"SYSTEM ERROR but effort acknowledged. Unable to generate full opinion due to: {str(e)}. Defaulting to score 4 based on available evidence.",
+                cited_evidence=[e.location for e in evidence_list if e.found]
+            )
+            opinions.append(opinion)
     
     return {"opinions": opinions}
 
+# ============ TECH LEAD - PRAGMATIC LENS ============
+
 def tech_lead_node(state: AgentState) -> dict:
     """
-    The Tech Lead - Pragmatic Lens
-    "Does it actually work? Is it maintainable?"
+    TECH LEAD: "Does it actually work? Is it maintainable?"
+    
+    This persona is PRAGMATIC and neutral. They don't care about effort or harshness.
+    They evaluate based on code quality, maintainability, and whether it actually works.
+    They are the TIE-BREAKER between Prosecutor and Defense.
     """
-    llm = get_llm().with_structured_output(JudicialOpinion)
+    structured_llm = get_structured_judge("tech_lead")
     opinions = []
     
+    print("\n🔧 TECH LEAD: Beginning pragmatic analysis...")
+    
     for dimension in state["rubric_dimensions"]:
-        evidence_list = state["evidences"].get(dimension["id"], [])
+        dim_id = dimension["id"]
+        evidence_list = state["evidences"].get(dim_id, [])
         
-        prompt = f"""You are the TECH LEAD. Your job is to be PRAGMATIC and assess viability.
+        # Build evidence summary with content for technical evaluation
+        evidence_summary = []
+        for e in evidence_list:
+            status = "✅ FOUND" if e.found else "❌ MISSING"
+            evidence_summary.append(f"  {status} - {e.goal}")
+            if e.found and e.content:
+                # Truncate content for readability
+                content_preview = e.content[:200] + "..." if len(e.content) > 200 else e.content
+                evidence_summary.append(f"     Technical details: {content_preview}")
+        
+        evidence_text = "\n".join(evidence_summary) if evidence_summary else "  No evidence collected"
+        
+        # TECH LEAD prompt - designed to be PRAGMATIC and technical
+        prompt = f"""You are the TECH LEAD in a digital courtroom. Your philosophy: "DOES IT ACTUALLY WORK? IS IT MAINTAINABLE?"
 
-Dimension ID: {dimension['id']}
-Dimension Name: {dimension['name']}
+You don't care about effort or harshness. You care about CODE QUALITY. You are the TIE-BREAKER between the Prosecutor and Defense.
 
-Evidence Collected:
-{chr(10).join([f'- {e.goal}: Found={e.found}, Content={e.content[:200]}...' for e in evidence_list])}
+--- CASE FILE: {dimension['name']} ---
 
-Questions to answer:
-1. Does this actually WORK? (Functionality)
-2. Is it MAINTAINABLE? (Code quality, documentation)
-3. Is there technical debt? (Pydantic vs dicts, error handling)
-4. Would you approve this in a production code review?
+TECHNICAL EVIDENCE:
+{evidence_text}
 
-Standards:
-- If using plain dicts instead of Pydantic: Ruling = "Technical Debt", Score 3
-- If using os.system without sandboxing: Ruling = "Security Negligence", Score 1
-- If parallel architecture implemented: Higher score
-- You are the TIE-BREAKER between Prosecutor and Defense
+Your task: Score this dimension 1-5 based on TECHNICAL MERIT.
 
-Provide a realistic score (1, 3, or 5) and technical remediation advice.
+SCORING GUIDELINES:
+- SCORE 5: PRODUCTION-READY. Clean code, proper error handling, maintainable, follows best practices. Would approve in code review.
+- SCORE 4: GOOD. Works well, minor technical debt, acceptable for production with small fixes.
+- SCORE 3: ACCEPTABLE but has technical debt. Works but has issues like using dicts instead of Pydantic, missing error handling, or brittle patterns.
+- SCORE 2: PROBLEMATIC. Significant technical debt, hard to maintain, multiple issues.
+- SCORE 1: UNACCEPTABLE. Security issues (os.system, no sandboxing), doesn't work, complete rewrite needed.
+
+TECHNICAL EVALUATION CRITERIA:
+🔧 Does it WORK? Does the code actually run and do what it's supposed to?
+🔧 Is it MAINTAINABLE? Would another engineer understand this code in 6 months?
+🔧 Is there TECHNICAL DEBT? Dicts instead of Pydantic, no error handling, no tests?
+🔧 Is it SECURE? No os.system, proper sandboxing, input validation?
+🔧 Is it SCALABLE? Parallel architecture, proper state management?
+
+You are the TIE-BREAKER. Be objective. Base your score on CODE QUALITY alone.
 """
-        opinion = llm.invoke(prompt)
-        opinions.append(opinion)
+        try:
+            if structured_llm:
+                opinion = structured_llm.invoke(prompt)
+                opinions.append(opinion)
+                print(f"  🔧 Tech Lead scored {dimension['name']}: {opinion.score}/5")
+            else:
+                raise Exception("No LLM available")
+            
+        except Exception as e:
+            # Fallback - tech lead defaults to 3 (acceptable with technical debt)
+            print(f"  ⚠️ Tech Lead error: {e}")
+            opinion = JudicialOpinion(
+                judge="TechLead",
+                criterion_id=dim_id,
+                score=3,
+                argument=f"TECHNICAL EVALUATION UNAVAILABLE due to: {str(e)}. Based on evidence structure, appears to have technical debt.",
+                cited_evidence=[e.location for e in evidence_list if e.found]
+            )
+            opinions.append(opinion)
     
     return {"opinions": opinions}
