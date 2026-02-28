@@ -468,6 +468,81 @@ Enhance judge prompts to ensure >50% difference between personas. Add more adver
 - **What peer's agent caught**: [describe]
 - **How I improved**: [describe]
 - **Agent now detects**: [describe]
+
+## ✅ What I Built
+
+### 1. Detective Layer (Fully Implemented)
+| Component | Status | Description |
+|-----------|--------|-------------|
+| **RepoInvestigator** | ✅ Complete | AST-based code analysis, git history forensics, sandboxed cloning |
+| **DocAnalyst** | ✅ Complete | PDF chunking, RAG-lite, concept depth analysis |
+| **VisionInspector** | ✅ Complete | Diagram detection, image extraction from PDFs |
+| **Evidence Aggregator** | ✅ Complete | Synchronization node with fan-in pattern |
+
+### 2. Judicial Layer (Fully Implemented)
+| Judge | Philosophy | Scoring Strategy |
+|-------|------------|------------------|
+| **Prosecutor** | "Trust No One" | Adversarial, finds flaws and security issues |
+| **Defense** | "Reward Effort" | Optimistic, rewards creative solutions |
+| **Tech Lead** | "Does it work?" | Pragmatic, assesses maintainability |
+
+### 3. Chief Justice (Fully Implemented)
+| Rule | Implementation |
+|------|----------------|
+| **Security Override** | Security flaws cap score at 3 |
+| **Fact Supremacy** | Evidence overrules unsupported claims |
+| **Functionality Weight** | Tech Lead highest for architecture |
+| **Dissent Requirement** | Explains variance > 2 |
+
+### 4. Graph Architecture
+- ✅ Two parallel fan-out/fan-in patterns (detectives + judges)
+- ✅ Conditional edges for error handling
+- ✅ Full end-to-end flow: URL → Detectives → Aggregator → Judges → Synthesis → Report
+
+---
+
+## 📊 Audit Reports Generated
+
+| Report | Location | Result |
+|--------|----------|--------|
+| **Self-Audit** | [`audit/report_onself_generated/self_audit.md`](./audit/report_onself_generated/self_audit.md) | Overall Score: 2.9/5 |
+| **Peer-Audit** | [`audit/report_onpeer_generated/peer_audit.md`](./audit/report_onpeer_generated/peer_audit.md) | Overall Score: 3.0/5 |
+| **Feedback Received** | [`audit/report_bypeer_received/feedback.md`](./audit/report_bypeer_received/feedback.md) | Peer review feedback |
+
+### Self-Audit Highlights
+- ✅ 13 evidence items collected across all detectives
+- ✅ 60 judicial opinions generated
+- ✅ Deterministic synthesis applied all rules
+- ✅ Final report saved as Markdown
+
+---
+
+## 🔄 MinMax Feedback Loop
+
+### What I Learned from Peer Review
+- Added explicit run commands for better usability
+- Enhanced error handling in graph conditional edges
+- Improved PDF path validation
+
+### How I Improved My Agent
+- Implemented rule-based fallbacks when API unavailable
+- Added comprehensive error messages
+- Enhanced evidence collection with dimension_id tracking
+
+---
+
+## 🚀 Quick Start
+
+```bash
+# Install dependencies
+uv sync
+
+# Run self-audit
+python run.py https://github.com/TsegayIS122123/automaton-auditor reports/interim_report.pdf
+
+# Run peer-audit
+python run.py https://github.com/Atnabon/automaton-auditor-swarm reports/interim_report.pdf
+```
 ## 👤 Author
 
 **Tsegay Assefa**
